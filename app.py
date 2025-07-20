@@ -91,7 +91,10 @@ if planet_input:
                                          'predicted_habitability_score']])
             with col2:
                 if st.button("No, let me type again"):
-                    st.session_state['planet_search'] = ""  # clears the text input
+                    if 'planet_search' in st.session_state:
+                        del st.session_state['planet_search']  # safely clears the input
+                    st.experimental_rerun()  # refresh the app so the input box is empty
+
         else:
             st.warning(f"'{planet_input}' not found. Fetching live data from NASA...")
             live_data = fetch_nasa_data(planet_input)
