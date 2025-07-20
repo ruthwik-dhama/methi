@@ -4,7 +4,6 @@ import numpy as np
 import joblib
 from rapidfuzz import process  # faster than fuzzywuzzy
 import requests
-import io
 
 # ============================
 # Load pre-trained METHI model & data
@@ -60,7 +59,7 @@ def predict_score(planet_data):
 # ============================
 
 st.set_page_config(page_title="METHI Habitability Tool", layout="centered")
-st.title("🌍 METHI: Machine-Learned Exoplanetary Habitability Index")
+st.title("\ud83c\udf0d METHI: Machine-Learned Exoplanetary Habitability Index")
 
 # Leaderboard
 st.subheader("Top 10 Most Habitable Exoplanets")
@@ -91,10 +90,10 @@ if planet_input:
                                          'predicted_habitability_score']])
             with col2:
                 if st.button("No, let me type again"):
-                    if 'planet_search' in st.session_state:
-                        del st.session_state['planet_search']  # safely clears the input
-                    st.experimental_rerun()  # refresh the app so the input box is empty
-
+                    # Clear the input and rerun
+                    if "planet_search" in st.session_state:
+                        st.session_state["planet_search"] = ""
+                    st.experimental_rerun()
         else:
             st.warning(f"'{planet_input}' not found. Fetching live data from NASA...")
             live_data = fetch_nasa_data(planet_input)
