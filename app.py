@@ -1,66 +1,88 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import matplotlib.pyplot as plt
-import seaborn as sns
+import requests
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor, VotingRegressor
+from sklearn.neural_network import MLPRegressor
+from xgboost import XGBRegressor
+from sklearn.model_selection import train_test_split
+from io import StringIO
 
-# Load your trained ensemble model (update path if needed)
-model = joblib.load("methi_best_model.pkl")  # Replace with your actual model file
-scaler = joblib.load("methi_scaler.pkl")     # StandardScaler used during training
-cluster_model = joblib.load("methi_cluster_model.pkl")  # Clustering model from Stage 2
+# === Load Preprocessed Dataset ===
+df = pd.read_csv("all_75_habitable_exoplanets_scores.csv")
+hab_df = df.copy()
 
-st.set_page_config(page_title="METHI Exoplanet Habitability Tool", layout="wide")
+# === Standardize Features ===
+features = ['pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad']
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(hab_df[features])
 
-st.title("🌌 METHI: Machine-Learned Exoplanetary Habitability Index")
-st.write("Input planetary and stellar data to get the METHI habitability score and classification.")
+y = hab_df['habitability_score']
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42
+)
 
-# --- User Inputs ---
-col1, col2 = st.columns(2)
-with col1:
-    pl_rade = st.number_input("Planet Radius (Earth radii)", value=1.0, format="%.3f")
-    pl_bmasse = st.number_input("Planet Mass (Earth masses)", value=1.0, format="%.3f")
-    pl_insol = st.number_input("Insolation Flux (Earth units)", value=1.0, format="%.3f")
-    pl_orbeccen = st.number_input("Orbital Eccentricity", value=0.0, min_value=0.0, max_value=1.0, format="%.3f")
-    pl_orbper = st.number_input("Orbital Period (days)", value=365.0, format="%.2f")
+# === Train Models ===
+rf = RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42)
+rf.fit(X_train, y_train)
 
-with col2:
-    st_teff = st.number_input("Stellar Effective Temperature (K)", value=5700.0, format="%.1f")
-    st_mass = st.number_input("Stellar Mass (Solar masses)", value=1.0, format="%.3f")
-    st_rad = st.number_input("Stellar Radius (Solar radii)", value=1.0, format="%.3f")
-    st_logg = st.number_input("Stellar Surface Gravity (log g)", value=4.4, format="%.2f")
-    st_lum = st.number_input("Stellar Luminosity (Solar units)", value=1.0, format="%.3f")
+xgb = XGBRegressor(n_estimators=200, max_depth=5, learning_rate=0.05, random_state=42, subsample=0.9, colsample_bytree=0.9)
+xgb.fit(X_train, y_train)
 
-if st.button("Predict Habitability"):
-    # Prepare input
-    features = np.array([[pl_rade, pl_insol, st_teff, st_mass, st_rad]])
-    features_scaled = scaler.transform(features)
+mlp = MLPRegressor(hidden_layer_sizes=(64, 32), activation='relu', solver='adam', max_iter=2000, random_state=42)
+mlp.fit(X_train, y_train)
 
-    # Predict habitability score
-    methi_score = model.predict(features_scaled)[0]
-    methi_score = np.clip(methi_score, 0, 1)
+ensemble = VotingRegressor([('rf', rf), ('xgb', xgb), ('mlp', mlp)])
+ensemble.fit(X_train, y_train)
+best_model = ensemble
 
-    # Cluster assignment
-    cluster = cluster_model.predict(features_scaled)[0]
+# === Streamlit Interface ===
+st.title("🌍 METHI: Exoplanet Habitability Estimator")
+st.markdown("Enter an exoplanet name to see its habitability score.")
 
-    # Display results
-    st.subheader("METHI Prediction Results")
-    st.metric("Habitability Score", f"{methi_score:.2f} / 1.0")
-    st.write(f"**Cluster Assignment:** Cluster {cluster}")
+planet_name = st.text_input("🔭 Exoplanet Name:")
 
-    # Visualization: Radar plot
-    feature_names = ['pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad']
-    values = [pl_rade, pl_insol, st_teff, st_mass, st_rad]
+@st.cache_data
+def fetch_exoplanet_data(planet_name):
+    base_url = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
+    query = (
+        f"select pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad "
+        f"from pscomppars where pl_name='{planet_name}'"
+    )
+    params = {"query": query, "format": "csv"}
+    response = requests.get(base_url, params=params)
 
-    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
-    angles = np.linspace(0, 2 * np.pi, len(feature_names), endpoint=False).tolist()
-    values += values[:1]
-    angles += angles[:1]
-    ax.plot(angles, values, color='teal', linewidth=2)
-    ax.fill(angles, values, color='teal', alpha=0.25)
-    ax.set_thetagrids(np.degrees(angles[:-1]), feature_names)
-    st.pyplot(fig)
+    if response.status_code == 200 and "pl_name" in response.text:
+        df = pd.read_csv(StringIO(response.text))
+        return df
+    return None
 
-    st.success("Prediction complete!")
+if planet_name:
+    result_row = hab_df[hab_df['pl_name'].str.lower() == planet_name.lower()]
 
-st.info("METHI incorporates improved features beyond SEPHI 2.0, including better machine learning, clustering, and probabilistic habitability scoring.")
+    if result_row.empty:
+        st.warning(f"'{planet_name}' not found in local dataset. Searching NASA...")
+        live_data = fetch_exoplanet_data(planet_name)
+
+        if live_data is not None and not live_data.empty:
+            try:
+                X_live = scaler.transform(live_data[features])
+                predicted_score = best_model.predict(X_live)[0]
+                predicted_score = np.clip(predicted_score, 0, 1)
+
+                st.success(f"Live METHI score for {planet_name}: {predicted_score:.2f}")
+                st.write(live_data)
+            except:
+                st.error("Could not compute METHI score due to missing or incompatible data.")
+        else:
+            st.error("Planet not found in NASA Exoplanet Archive.")
+    else:
+        st.success(f"{planet_name} METHI score (local data): {result_row['habitability_score'].values[0]:.2f}")
+        st.dataframe(result_row)
+
+# === Leaderboard ===
+st.subheader("🏆 Top 10 Most Habitable Exoplanets")
+top10 = hab_df.sort_values(by="habitability_score", ascending=False).head(10)
+st.dataframe(top10[['pl_name', 'habitability_score']])
+st.bar_chart(top10.set_index('pl_name')['habitability_score'])
