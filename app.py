@@ -59,7 +59,7 @@ def predict_score(planet_data):
 # ============================
 
 st.set_page_config(page_title="METHI Habitability Tool", layout="centered")
-st.title("\ud83c\udf0d METHI: Machine-Learned Exoplanetary Habitability Index")
+st.title("METHI: Machine-Learned Exoplanetary Habitability Index")
 
 # Leaderboard
 st.subheader("Top 10 Most Habitable Exoplanets")
