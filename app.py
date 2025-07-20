@@ -2,68 +2,77 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
+from fuzzywuzzy import process  # fuzzy string matching
 
-# === Title ===
-st.set_page_config(page_title="METHI Habitability Tool")
-st.title("🪐 METHI Exoplanet Habitability Score Calculator")
-st.markdown("Enter the name of an exoplanet to check its habitability score, or explore the top 10 most habitable exoplanets.")
+st.set_page_config(page_title="METHI Habitability Scorer", layout="centered")
 
-# Load cached dataset if it exists
-expected_columns = ['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'habitability_score', 'predicted_habitability_score']
+st.title("METHI: ML Exoplanetary Terrestrial Habitability Index")
+
+# Load dataset
 try:
     df = pd.read_csv("all_75_habitable_exoplanets_scores.csv")
 except FileNotFoundError:
-    df = pd.DataFrame(columns=expected_columns)
+    df = pd.DataFrame()
+    st.warning("⚠️ Local dataset not found. Only live lookup will be used.")
 
-# User input section
-planet_name = st.text_input("🔍 Enter exoplanet name (case-sensitive):")
+# Normalize planet names for matching
+if not df.empty and "pl_name" in df.columns:
+    df["pl_name_clean"] = df["pl_name"].str.strip().str.lower()
 
-# --- METHI Score Calculator ---
-def methi_score(row):
-    base = 1 - abs(row['pl_rade'] - 1) / 2.5 - abs(row['pl_insol'] - 1) / 2.0
-    return round(np.clip(base, 0, 1), 2)
-
-# --- Planet Lookup and Scoring ---
-if planet_name:
-    planet_row = df[df['pl_name'] == planet_name]
-
-    if not planet_row.empty:
-        st.success("✅ Found in cached dataset.")
-        st.dataframe(planet_row.reset_index(drop=True))
-
-    else:
-        st.info("🌐 Fetching live data from NASA Exoplanet Archive...")
-        query_url = (
-            f"https://exoplanetarchive.ipac.caltech.edu/TAP/sync?"
-            f"query=select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+"
-            f"from+pscomppars+where+pl_name='{planet_name}'&format=csv"
-        )
-
-        try:
-            live_df = pd.read_csv(query_url)
-            if live_df.empty:
-                st.error("❌ Planet not found in NASA Archive.")
-            else:
-                row = live_df.iloc[0]
-                score = methi_score(row)
-                result = pd.DataFrame({
-                    'pl_name': [row['pl_name']],
-                    'pl_rade': [row['pl_rade']],
-                    'pl_insol': [row['pl_insol']],
-                    'st_teff': [row['st_teff']],
-                    'st_mass': [row['st_mass']],
-                    'st_rad': [row['st_rad']],
-                    'habitability_score': [score],
-                    'predicted_habitability_score': [score]  # Placeholder
-                })
-                st.success("✅ Planet found and scored.")
-                st.dataframe(result)
-
-        except Exception as e:
-            st.error(f"❌ Error fetching planet data: {e}")
-
-# === Leaderboard ===
+# Leaderboard
 if not df.empty:
-    st.subheader("🏆 Top 10 Most Habitable Exoplanets (METHI)")
-    top10 = df.sort_values(by='habitability_score', ascending=False).head(10)
-    st.dataframe(top10.reset_index(drop=True))
+    st.subheader("🏆 Top 10 Most Habitable Exoplanets")
+    top10 = df.sort_values("predicted_habitability_score", ascending=False).head(10)
+    st.table(top10[["pl_name", "predicted_habitability_score"]])
+
+# Input box
+st.subheader("🔍 Search for a Planet")
+planet_name = st.text_input("Enter Exoplanet Name").strip()
+
+# Habitability proxy
+def habitability_proxy(pl_rade, pl_insol):
+    score = 1 - abs(pl_rade - 1)/2.5 - abs(pl_insol - 1)/2.0
+    return round(np.clip(score, 0, 1), 2)
+
+# Fetch live data
+def fetch_from_nasa(name):
+    query = (
+        "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?"
+        f"query=select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+"
+        f"from+pscomppars+where+lower(pl_name)='{name.lower()}'&format=csv"
+    )
+    try:
+        return pd.read_csv(query)
+    except Exception:
+        return pd.DataFrame()
+
+if planet_name:
+    cleaned = planet_name.lower()
+    match = pd.DataFrame()
+
+    if not df.empty and "pl_name_clean" in df.columns:
+        # Exact match first
+        match = df[df["pl_name_clean"] == cleaned]
+
+        # Fuzzy match if no exact match
+        if match.empty:
+            best_match = process.extractOne(cleaned, df["pl_name_clean"], score_cutoff=80)
+            if best_match:
+                match = df[df["pl_name_clean"] == best_match[0]]
+
+    if not match.empty:
+        row = match.iloc[0]
+        st.success(f"Found in dataset: {row['pl_name']}")
+        st.write("Habitability Score:", row["predicted_habitability_score"])
+        st.dataframe(row[["pl_rade", "pl_insol", "st_teff", "st_mass", "st_rad"]].T.rename(columns={row.name: "Value"}))
+    else:
+        st.info("Not in dataset. Fetching from NASA...")
+        live = fetch_from_nasa(planet_name)
+        if not live.empty and pd.notnull(live.iloc[0]["pl_rade"]) and pd.notnull(live.iloc[0]["pl_insol"]):
+            row = live.iloc[0]
+            score = habitability_proxy(row["pl_rade"], row["pl_insol"])
+            st.success(f"Found: {row['pl_name']}")
+            st.write("Estimated Habitability Score (proxy):", score)
+            st.dataframe(row[["pl_rade", "pl_insol", "st_teff", "st_mass", "st_rad"]].T.rename(columns={row.name: "Value"}))
+        else:
+            st.error("No sufficient data found.")
