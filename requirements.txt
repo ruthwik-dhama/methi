@@ -1,5 +1,8 @@
+streamlit
 pandas
 numpy
+rapidfuzz
+requests
 scikit-learn
 xgboost
 matplotlib
