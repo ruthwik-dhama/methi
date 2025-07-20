@@ -65,14 +65,6 @@ st.title("METHI: Machine-Learned Exoplanetary Habitability Index")
 st.subheader("Top 10 Most Habitable Exoplanets")
 st.table(top10[['pl_name', 'predicted_habitability_score']].round(2))
 
-# Optional: reset state if requested
-if st.experimental_get_query_params().get("reset"):
-    st.experimental_set_query_params()  # clear query params
-    planet_input = ""
-    st.session_state.clear()
-else:
-    planet_input = st.text_input("Enter planet name (case-insensitive):", key="planet_search")
-
 # Search section
 st.subheader("Search for an Exoplanet")
 planet_input = st.text_input("Enter planet name (case-insensitive):", key="planet_search")
