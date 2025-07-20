@@ -1,98 +1,103 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from rapidfuzz import process
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.ensemble import VotingRegressor
-from sklearn.neural_network import MLPRegressor
-from xgboost import XGBRegressor
+import joblib
+from rapidfuzz import process  # faster than fuzzywuzzy
+import requests
+import io
 
-# =========================
-# Load your precomputed dataset and trained model
-# =========================
-df = pd.read_csv("all_75_habitable_exoplanets_scores.csv")
-df['pl_name_lower'] = df['pl_name'].str.lower()  # for case-insensitive matching
+# ============================
+# Load pre-trained METHI model & data
+# ============================
 
-# === Re-train METHI Ensemble Model using your dataset ===
-features = ['pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad']
-X = df[features]
-y = df['habitability_score']
+@st.cache_resource
+def load_model():
+    return joblib.load("methi_model.pkl")  # trained in Colab and saved once
 
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+@st.cache_data
+def load_data():
+    df = pd.read_csv("all_75_habitable_exoplanets_scores.csv")
+    df['pl_name_lower'] = df['pl_name'].str.lower()
+    return df
 
-# Train component models
-rf = RandomForestRegressor(n_estimators=200, max_depth=10, random_state=42)
-xgb = XGBRegressor(n_estimators=200, max_depth=5, learning_rate=0.05,
-                   random_state=42, subsample=0.9, colsample_bytree=0.9)
-mlp = MLPRegressor(hidden_layer_sizes=(64, 32), activation='relu',
-                   solver='adam', max_iter=2000, random_state=42)
+model = load_model()
+df = load_data()
 
-rf.fit(X_scaled, y)
-xgb.fit(X_scaled, y)
-mlp.fit(X_scaled, y)
+# Precompute leaderboard
+top10 = df.sort_values(by="predicted_habitability_score", ascending=False).head(10)
 
-# Ensemble model
-methi_model = VotingRegressor([('rf', rf), ('xgb', xgb), ('mlp', mlp)])
-methi_model.fit(X_scaled, y)
+# Set of names for fast lookup
+planet_names = set(df['pl_name_lower'])
 
-# =========================
-# Streamlit App
-# =========================
-st.title("🌌 METHI Habitability Score Explorer")
+# ============================
+# NASA Exoplanet Archive fetch (cached)
+# ============================
 
-planet_name_input = st.text_input("Enter exoplanet name:")
+@st.cache_data
+def fetch_nasa_data(planet_name):
+    query = f"select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+from+pscomppars+where+pl_name='{planet_name}'"
+    url = f"https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query={query}&format=csv"
+    try:
+        new_df = pd.read_csv(url)
+        if not new_df.empty:
+            return new_df.iloc[0].to_dict()
+    except Exception:
+        return None
+    return None
 
-if planet_name_input:
-    planet_name_input_lower = planet_name_input.lower()
+# ============================
+# Predict METHI score
+# ============================
 
-    if planet_name_input_lower in df['pl_name_lower'].values:
-        # Exact match
-        planet_info = df[df['pl_name_lower'] == planet_name_input_lower]
-        st.success(f"Found: {planet_info.iloc[0]['pl_name']}")
-        st.dataframe(planet_info)
+def predict_score(planet_data):
+    features = ['pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad']
+    X = np.array([[planet_data[feat] for feat in features]])
+    pred = model.predict(X)[0]
+    return np.clip(pred, 0, 1)
+
+# ============================
+# Streamlit UI
+# ============================
+
+st.set_page_config(page_title="METHI Habitability Tool", layout="centered")
+st.title("🌍 METHI: Machine-Learned Exoplanetary Habitability Index")
+
+# Leaderboard
+st.subheader("Top 10 Most Habitable Exoplanets")
+st.table(top10[['pl_name', 'predicted_habitability_score']].round(2))
+
+# Search section
+st.subheader("Search for an Exoplanet")
+planet_input = st.text_input("Enter planet name (case-insensitive):")
+
+if planet_input:
+    search_name = planet_input.strip().lower()
+
+    # Exact match
+    if search_name in planet_names:
+        planet_row = df[df['pl_name_lower'] == search_name].iloc[0]
+        st.success(f"Found {planet_row['pl_name']} in dataset!")
+        st.write(planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad',
+                             'predicted_habitability_score']])
     else:
         # Fuzzy match
-        all_planet_names = df['pl_name'].tolist()
-        best_match, score, _ = process.extractOne(planet_name_input, all_planet_names)
-
-        if score >= 80:
-            st.warning(f"Did you mean **{best_match}**? Showing closest match.")
-            planet_info = df[df['pl_name'] == best_match]
-            st.dataframe(planet_info)
+        best_match, score, _ = process.extractOne(search_name, df['pl_name_lower'])
+        if score > 85:  # confidence threshold
+            planet_row = df[df['pl_name_lower'] == best_match].iloc[0]
+            st.info(f"Did you mean: {planet_row['pl_name']}?")
+            st.write(planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad',
+                                 'predicted_habitability_score']])
         else:
-            st.error("Planet not found in the dataset. Pulling live data from NASA Exoplanet Archive...")
-            url = (
-                "https://exoplanetarchive.ipac.caltech.edu/TAP/sync?"
-                f"query=select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+from+pscomppars+where+pl_name='{planet_name_input}'&format=csv"
-            )
-            try:
-                new_data = pd.read_csv(url)
-                if not new_data.empty:
-                    st.success(f"Live data found for {planet_name_input}!")
-                    # Compute METHI score
-                    new_X = new_data[features]
-                    new_X_scaled = scaler.transform(new_X)
-                    predicted_score = methi_model.predict(new_X_scaled)
-                    new_data['METHI_score'] = np.clip(predicted_score, 0, 1).round(2)
-                    st.dataframe(new_data)
-                else:
-                    st.error("No data available for this planet, even in NASA archives.")
-            except Exception as e:
-                st.error(f"Error fetching live data: {e}")
+            st.warning(f"'{planet_input}' not found. Fetching live data from NASA...")
+            live_data = fetch_nasa_data(planet_input)
+            if live_data:
+                score = predict_score(live_data)
+                st.success(f"Live METHI score for {planet_input}: {score:.2f}")
+                st.write(pd.DataFrame([live_data]))
+            else:
+                st.error("No data found in NASA Exoplanet Archive.")
 
-# Leaderboard of Top 10
-st.subheader("🏆 Top 10 Most Habitable Planets")
-top10 = df.sort_values(by='habitability_score', ascending=False).head(10)
-top10_display = top10[['pl_name', 'habitability_score']].copy()
-top10_display['habitability_score'] = top10_display['habitability_score'].round(2)
-st.table(top10_display)
-
-# Full dataset download
-st.download_button(
-    label="Download Full Dataset",
-    data=df.to_csv(index=False),
-    file_name="all_75_habitable_exoplanets_scores.csv",
-    mime="text/csv",
-)
+# Download full dataset
+st.subheader("Download full habitability dataset")
+csv = df.to_csv(index=False).encode('utf-8')
+st.download_button("Download CSV", data=csv, file_name="METHI_scores.csv", mime="text/csv")
