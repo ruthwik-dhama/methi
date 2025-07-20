@@ -68,12 +68,11 @@ st.table(top10[['pl_name', 'predicted_habitability_score']].round(2))
 
 # Search section
 st.subheader("Search for an Exoplanet")
-planet_input = st.text_input("Enter planet name (case-insensitive):")
+planet_input = st.text_input("Enter planet name (case-insensitive):", key="planet_search")
 
 if planet_input:
     search_name = planet_input.strip().lower()
 
-    # Exact match
     if search_name in planet_names:
         planet_row = df[df['pl_name_lower'] == search_name].iloc[0]
         st.success(f"Found {planet_row['pl_name']} in dataset!")
@@ -82,11 +81,17 @@ if planet_input:
     else:
         # Fuzzy match
         best_match, score, _ = process.extractOne(search_name, df['pl_name_lower'])
-        if score > 85:  # confidence threshold
+        if score > 85:
             planet_row = df[df['pl_name_lower'] == best_match].iloc[0]
             st.info(f"Did you mean: {planet_row['pl_name']}?")
-            st.write(planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad',
-                                 'predicted_habitability_score']])
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Yes, show this one"):
+                    st.write(planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad',
+                                         'predicted_habitability_score']])
+            with col2:
+                if st.button("No, let me type again"):
+                    st.session_state['planet_search'] = ""  # clears the text input
         else:
             st.warning(f"'{planet_input}' not found. Fetching live data from NASA...")
             live_data = fetch_nasa_data(planet_input)
