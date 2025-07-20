@@ -90,9 +90,9 @@ if planet_input:
                                          'predicted_habitability_score']])
             with col2:
                 if st.button("No, let me type again"):
-                    st.query_params(reset="1")
-                    st.stop()
-
+                    if "planet_search" in st.session_state:
+                        st.session_state.pop("planet_search")  # safely clears input
+                    st.rerun()  # triggers rerun and resets the input box
         else:
             st.warning(f"'{planet_input}' not found. Fetching live data from NASA...")
             live_data = fetch_nasa_data(planet_input)
