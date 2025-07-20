@@ -90,7 +90,7 @@ if planet_input:
                                          'predicted_habitability_score']])
             with col2:
                 if st.button("No, let me type again"):
-                    st.experimental_set_query_params(reset="1")
+                    st.query_params(reset="1")
                     st.stop()
 
         else:
