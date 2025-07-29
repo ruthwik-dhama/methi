@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-from rapidfuzz import process  # faster than fuzzywuzzy
+from rapidfuzz import process
 import requests
 
 # ============================
