@@ -11,7 +11,7 @@ import requests
 
 @st.cache_resource
 def load_model():
-    return joblib.load("methi_model.pkl")  # trained in Colab and saved once
+    return joblib.load("methi_model.pkl")
 
 @st.cache_data
 def load_data():
@@ -24,6 +24,12 @@ df = load_data()
 
 # Precompute leaderboard
 top10 = df.sort_values(by="predicted_habitability_score", ascending=False).head(10)
+top10_display = top10[['pl_name', 'predicted_habitability_score']].rename(
+    columns={
+        'pl_name': 'Exoplanet',
+        'predicted_habitability_score': 'METHI Habitability Score'
+    }
+)
 
 # Set of names for fast lookup
 planet_names = set(df['pl_name_lower'])
@@ -63,7 +69,7 @@ st.title("METHI: Machine-Learned Exoplanetary Habitability Index")
 
 # Leaderboard
 st.subheader("Top 10 Most Habitable Exoplanets")
-st.table(top10[['pl_name', 'predicted_habitability_score']].round(2))
+st.table(top10_display.round(2))
 
 # Search section
 st.subheader("Search for an Exoplanet")
@@ -75,10 +81,12 @@ if planet_input:
     if search_name in planet_names:
         planet_row = df[df['pl_name_lower'] == search_name].iloc[0]
         st.success(f"Found {planet_row['pl_name']} in dataset!")
-        st.write(planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad',
-                             'predicted_habitability_score']])
+        display_row = planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'predicted_habitability_score']].rename({
+            'pl_name': 'Exoplanet',
+            'predicted_habitability_score': 'METHI Habitability Score'
+        })
+        st.write(display_row.to_frame().T)
     else:
-        # Fuzzy match
         best_match, score, _ = process.extractOne(search_name, df['pl_name_lower'])
         if score > 85:
             planet_row = df[df['pl_name_lower'] == best_match].iloc[0]
@@ -86,13 +94,16 @@ if planet_input:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Yes, show this one"):
-                    st.write(planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad',
-                                         'predicted_habitability_score']])
+                    display_row = planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'predicted_habitability_score']].rename({
+                        'pl_name': 'Exoplanet',
+                        'predicted_habitability_score': 'METHI Habitability Score'
+                    })
+                    st.write(display_row.to_frame().T)
             with col2:
                 if st.button("No, let me type again"):
                     if "planet_search" in st.session_state:
-                        st.session_state.pop("planet_search")  # safely clears input
-                    st.rerun()  # triggers rerun and resets the input box
+                        st.session_state.pop("planet_search")
+                    st.rerun()
         else:
             st.warning(f"'{planet_input}' not found. Fetching live data from NASA...")
             live_data = fetch_nasa_data(planet_input)
@@ -105,5 +116,9 @@ if planet_input:
 
 # Download full dataset
 st.subheader("Download full habitability dataset")
-csv = df.to_csv(index=False).encode('utf-8')
+df_download = df.rename(columns={
+    'pl_name': 'Exoplanet',
+    'predicted_habitability_score': 'METHI Habitability Score'
+})
+csv = df_download.to_csv(index=False).encode('utf-8')
 st.download_button("Download CSV", data=csv, file_name="METHI_scores.csv", mime="text/csv")
