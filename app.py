@@ -95,11 +95,14 @@ if planet_input:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Yes, show this one"):
-                    display_row = planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'predicted_habitability_score']].rename({
-                        'pl_name': 'Exoplanet',
-                        'predicted_habitability_score': 'METHI Habitability Score'
-                    })
-                    st.write(display_row.to_frame().T)
+                    st.markdown("### Exoplanet Details")
+                    st.markdown(f"**Exoplanet**: {planet_row['pl_name']}")
+                    st.markdown(f"**Planet Radius (Earth radii)**: {planet_row['pl_rade']}")
+                    st.markdown(f"**Insolation Flux (Earth = 1)**: {planet_row['pl_insol']}")
+                    st.markdown(f"**Stellar Effective Temperature (K)**: {planet_row['st_teff']}")
+                    st.markdown(f"**Stellar Mass (Solar masses)**: {planet_row['st_mass']}")
+                    st.markdown(f"**Stellar Radius (Solar radii)**: {planet_row['st_rad']}")
+                    st.markdown(f"**METHI Habitability Score**: {planet_row['predicted_habitability_score']:.2f}")
             with col2:
                 if st.button("No, let me type again"):
                     if "planet_search" in st.session_state:
