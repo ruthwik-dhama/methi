@@ -69,7 +69,18 @@ st.title("METHI: Machine-Learned Exoplanetary Habitability Index")
 
 # Leaderboard
 st.subheader("Top 10 Most Habitable Exoplanets")
-st.table(top10_display.round(2))
+# Prepare a clean leaderboard table with ranking from 1 to 10
+leaderboard = top10[['pl_name', 'predicted_habitability_score']].copy()
+leaderboard = leaderboard.reset_index(drop=True)
+leaderboard.index = leaderboard.index + 1  # Make index start from 1
+leaderboard.index.name = "Rank"
+leaderboard = leaderboard.rename(columns={
+    'pl_name': 'Exoplanet',
+    'predicted_habitability_score': 'METHI Habitability Score'
+})
+
+st.table(leaderboard.round(2))
+
 
 # Search section
 st.subheader("Search for an Exoplanet")
