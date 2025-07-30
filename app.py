@@ -7,7 +7,7 @@ import requests
 import urllib.parse
 
 # ============================
-# Load models and datasets
+# Load pre-trained METHI model & data
 # ============================
 
 @st.cache_resource
@@ -15,64 +15,79 @@ def load_model():
     return joblib.load("methi_model.pkl")
 
 @st.cache_data
-def load_top75():
+def load_data():
     df = pd.read_csv("all_75_habitable_exoplanets_scores.csv")
     df['pl_name_lower'] = df['pl_name'].str.lower()
     return df
 
-@st.cache_data
-def load_full_classification():
-    df = pd.read_csv("stage1_predictions.csv")
-    df['pl_name_lower'] = df['pl_name'].str.lower()
-    return df
-
 model = load_model()
-df = load_top75()
-full_df = load_full_classification()
+df = load_data()
 
-top10 = df.sort_values(by="predicted_habitability_score", ascending=False).head(10).reset_index(drop=True)
+# Precompute leaderboard
+top10 = df.sort_values(by="predicted_habitability_score", ascending=False).head(10)
+top10_display = top10[['pl_name', 'predicted_habitability_score']].rename(
+    columns={
+        'pl_name': 'Exoplanet',
+        'predicted_habitability_score': 'METHI Habitability Score'
+    }
+)
+
+# Set of names for fast lookup
 planet_names = set(df['pl_name_lower'])
-full_planet_names = set(full_df['pl_name_lower'])
 
 # ============================
-# NASA fetch fallback
+# NASA Exoplanet Archive fetch (cached)
 # ============================
 
 @st.cache_data
 def fetch_nasa_data(planet_name):
-    query = f"select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+from+pscomppars+where+pl_name='{planet_name}'"
+    encoded_name = urllib.parse.quote(planet_name.strip())  # ensure proper encoding
+    query = (
+        f"select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+"
+        f"from+pscomppars+where+pl_name='{encoded_name}'"
+    )
     url = f"https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query={query}&format=csv"
     try:
-        df = pd.read_csv(url)
-        if not df.empty:
-            return df.iloc[0].to_dict()
-    except:
-        return None
+        new_df = pd.read_csv(url)
+        if not new_df.empty:
+            return new_df.iloc[0].to_dict()
+    except Exception as e:
+        st.error(f"❌ Error fetching data: {e}")
     return None
 
 # ============================
-# Prediction helper
+# Predict METHI score
 # ============================
 
 def predict_score(planet_data):
     features = ['pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad']
     X = np.array([[planet_data[feat] for feat in features]])
-    return float(np.clip(model.predict(X)[0], 0, 1))
+    pred = model.predict(X)[0]
+    return np.clip(pred, 0, 1)
 
 # ============================
 # Streamlit UI
 # ============================
 
 st.set_page_config(page_title="METHI Habitability Tool", layout="centered")
-st.title("\U0001F30D METHI: Machine-Learned Exoplanetary Habitability Index")
+st.title("METHI: Machine-Learned Exoplanetary Habitability Index")
 
 # Leaderboard
 st.subheader("Top 10 Most Habitable Exoplanets")
-display_top10 = top10[['pl_name', 'predicted_habitability_score']].copy()
-display_top10.columns = ["Exoplanet", "METHI Habitability Score"]
-st.table(display_top10.style.format({"METHI Habitability Score": "{:.2f}"}))
+# Prepare a clean leaderboard table with ranking from 1 to 10
+leaderboard = top10[['pl_name', 'predicted_habitability_score']].copy()
+leaderboard = leaderboard.reset_index(drop=True)
+leaderboard.index = leaderboard.index + 1  # Make index start from 1
+leaderboard.index.name = "Rank"
+leaderboard = leaderboard.rename(columns={
+    'pl_name': 'Exoplanet',
+    'predicted_habitability_score': 'METHI Habitability Score'
+})
 
-# Search
+st.table(leaderboard.round(2))
+
+
+# Search section
 st.subheader("Search for an Exoplanet")
 planet_input = st.text_input("Enter planet name (case-insensitive):", key="planet_search")
 
@@ -81,10 +96,12 @@ if planet_input:
 
     if search_name in planet_names:
         planet_row = df[df['pl_name_lower'] == search_name].iloc[0]
-        st.success(f"Found {planet_row['pl_name']} in top 75!")
-        show_df = planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'predicted_habitability_score']].to_frame().T
-        show_df.columns = ["Exoplanet", "Radius (Earth)", "Insolation", "Stellar Teff", "Stellar Mass", "Stellar Radius", "METHI Habitability Score"]
-        st.write(show_df.reset_index(drop=True).style.format({"METHI Habitability Score": "{:.2f}"}))
+        st.success(f"Found {planet_row['pl_name']} in dataset!")
+        display_row = planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'predicted_habitability_score']].rename({
+            'pl_name': 'Exoplanet',
+        'predicted_habitability_score': 'METHI Habitability Score'
+        })
+        st.dataframe(display_row.to_frame().T, use_container_width=True)
 
     else:
         best_match, score, _ = process.extractOne(search_name, df['pl_name_lower'])
@@ -94,47 +111,34 @@ if planet_input:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Yes, show this one"):
-                    show_df = planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'predicted_habitability_score']].to_frame().T
-                    show_df.columns = ["Exoplanet", "Radius (Earth)", "Insolation", "Stellar Teff", "Stellar Mass", "Stellar Radius", "METHI Habitability Score"]
-                    st.write(show_df.reset_index(drop=True).style.format({"METHI Habitability Score": "{:.2f}"}))
+                    st.markdown("### Exoplanet Details")
+                    st.markdown(f"**Exoplanet**: {planet_row['pl_name']}")
+                    st.markdown(f"**Planet Radius (Earth radii)**: {planet_row['pl_rade']}")
+                    st.markdown(f"**Insolation Flux (Earth = 1)**: {planet_row['pl_insol']}")
+                    st.markdown(f"**Stellar Effective Temperature (K)**: {planet_row['st_teff']}")
+                    st.markdown(f"**Stellar Mass (Solar masses)**: {planet_row['st_mass']}")
+                    st.markdown(f"**Stellar Radius (Solar radii)**: {planet_row['st_rad']}")
+                    st.markdown(f"**METHI Habitability Score**: {planet_row['predicted_habitability_score']:.2f}")
             with col2:
                 if st.button("No, let me type again"):
-                    st.session_state.pop("planet_search", None)
+                    if "planet_search" in st.session_state:
+                        st.session_state.pop("planet_search")
                     st.rerun()
-
-        elif search_name in full_planet_names:
-            full_row = full_df[full_df['pl_name_lower'] == search_name].iloc[0]
-            if full_row.get('habitable', 0) == 0:
-                st.warning(f"{full_row['pl_name']} is classified as non-habitable in the METHI model.")
-                show_df = full_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad']].to_frame().T
-                show_df.columns = ["Exoplanet", "Radius (Earth)", "Insolation", "Stellar Teff", "Stellar Mass", "Stellar Radius"]
-                st.write(show_df.reset_index(drop=True))
-            else:
-                st.info(f"{full_row['pl_name']} is habitable but not in the top 75.")
-                show_df = full_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad']].to_frame().T
-                show_df.columns = ["Exoplanet", "Radius (Earth)", "Insolation", "Stellar Teff", "Stellar Mass", "Stellar Radius"]
-                st.write(show_df.reset_index(drop=True))
-
         else:
-            st.warning(f"'{planet_input}' not found in dataset. Attempting NASA Archive fetch...")
+            st.warning(f"'{planet_input}' not found. Fetching live data from NASA...")
             live_data = fetch_nasa_data(planet_input)
             if live_data:
-                try:
-                    score = predict_score(live_data)
-                    st.success(f"Live METHI score for {planet_input}: {score:.2f}")
-                    display_live = pd.DataFrame([live_data])
-                    display_live['METHI Habitability Score'] = score
-                    display_live = display_live[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'METHI Habitability Score']]
-                    display_live.columns = ["Exoplanet", "Radius (Earth)", "Insolation", "Stellar Teff", "Stellar Mass", "Stellar Radius", "METHI Habitability Score"]
-                    st.write(display_live.style.format({"METHI Habitability Score": "{:.2f}"}))
-                except Exception as e:
-                    st.error("Fetched data incomplete for METHI scoring.")
+                score = predict_score(live_data)
+                st.success(f"Live METHI score for {planet_input}: {score:.2f}")
+                st.write(pd.DataFrame([live_data]))
             else:
-                st.error("No data found for this planet.")
+                st.error("No data found in NASA Exoplanet Archive.")
 
-# Dataset download
+# Download full dataset
 st.subheader("Download full habitability dataset")
-download_df = df[['pl_name', 'predicted_habitability_score']].copy()
-download_df.columns = ["Exoplanet", "METHI Habitability Score"]
-csv = download_df.to_csv(index=False).encode('utf-8')
+df_download = df.rename(columns={
+    'pl_name': 'Exoplanet',
+    'predicted_habitability_score': 'METHI Habitability Score'
+})
+csv = df_download.to_csv(index=False).encode('utf-8')
 st.download_button("Download CSV", data=csv, file_name="METHI_scores.csv", mime="text/csv")
