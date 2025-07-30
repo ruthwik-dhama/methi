@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 from rapidfuzz import process
 import requests
+import urllib.parse
 
 # ============================
 # Load pre-trained METHI model & data
@@ -40,14 +41,18 @@ planet_names = set(df['pl_name_lower'])
 
 @st.cache_data
 def fetch_nasa_data(planet_name):
-    query = f"select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+from+pscomppars+where+pl_name='{planet_name}'"
+    encoded_name = urllib.parse.quote(planet_name.strip())  # ensure proper encoding
+    query = (
+        f"select+pl_name,pl_rade,pl_insol,st_teff,st_mass,st_rad+"
+        f"from+pscomppars+where+pl_name='{encoded_name}'"
+    )
     url = f"https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query={query}&format=csv"
     try:
         new_df = pd.read_csv(url)
         if not new_df.empty:
             return new_df.iloc[0].to_dict()
-    except Exception:
-        return None
+    except Exception as e:
+        st.error(f"❌ Error fetching data: {e}")
     return None
 
 # ============================
