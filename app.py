@@ -1,4 +1,4 @@
-import streamlit as st
+    import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
@@ -83,9 +83,10 @@ if planet_input:
         st.success(f"Found {planet_row['pl_name']} in dataset!")
         display_row = planet_row[['pl_name', 'pl_rade', 'pl_insol', 'st_teff', 'st_mass', 'st_rad', 'predicted_habitability_score']].rename({
             'pl_name': 'Exoplanet',
-            'predicted_habitability_score': 'METHI Habitability Score'
+        'predicted_habitability_score': 'METHI Habitability Score'
         })
-        st.write(display_row.to_frame().T)
+        st.dataframe(display_row.to_frame().T, use_container_width=True)
+
     else:
         best_match, score, _ = process.extractOne(search_name, df['pl_name_lower'])
         if score > 85:
