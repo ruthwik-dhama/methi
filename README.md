@@ -1,214 +1,164 @@
-# METHI: Machine-Learned Exoplanetary Habitability Index
+# METHI
+### Machine-Learned Exoplanetary Habitability Index
 
-METHI (Machine-Learned Exoplanetary Habitability Index) is a machine learning framework that identifies, classifies, clusters, and ranks confirmed exoplanets based on their potential habitability. The project leverages publicly available NASA exoplanet data and applies supervised and unsupervised learning techniques to generate an interpretable habitability score.
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-Web%20Application-red.svg)](https://streamlit.io)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-Machine%20Learning-orange.svg)](https://scikit-learn.org)
+[![XGBoost](https://img.shields.io/badge/XGBoost-Gradient%20Boosting-green.svg)](https://xgboost.ai)
+[![IEEE](https://img.shields.io/badge/IEEE-CONMEDIA%202025-blue.svg)](https://ieeexplore.ieee.org/document/11290119)
+
+---
+
+## Publication
+
+**METHI: An Ensemble-based Machine Learned Exoplanetary Habitability Index** was peer-reviewed and published in the **2025 International Conference on New Media Studies (CONMEDIA 2025)** and is available through the IEEE Xplore Digital Library.
+
+**Authors**
+
+- Ruthwik Dhama
+- Praveen Pratap Singh
+- Vishal Kumar
+
+**IEEE Xplore:** https://ieeexplore.ieee.org/document/11290119
 
 ---
 
 ## Overview
 
-The search for potentially habitable exoplanets has traditionally relied on simple threshold-based metrics. METHI extends this approach by combining machine learning algorithms with astrophysical constraints to identify planets that most closely resemble Earth-like conditions.
+**METHI (Machine-Learned Exoplanetary Habitability Index)** is a published machine learning framework designed to identify, classify, cluster, and rank potentially habitable exoplanets using observational data from the **NASA Exoplanet Archive**.
 
-The framework consists of four stages:
+Traditional habitability indices such as the Earth Similarity Index (ESI), Planetary Habitability Index (PHI), and Statistical-likelihood Exoplanetary Habitability Index (SEPHI) rely primarily on deterministic equations and manually engineered heuristics. METHI extends these approaches by learning complex nonlinear relationships directly from planetary and stellar parameters using modern machine learning techniques.
 
-1. Habitability Classification
-2. Candidate Clustering
-3. Habitability Scoring
-4. Visualization and Interpretation
+The framework combines supervised classification, ensemble learning, unsupervised clustering, and continuous habitability scoring to produce an interpretable Machine-Learned Exoplanetary Habitability Index. An accompanying Streamlit application enables researchers and students to analyze exoplanets in real time through an interactive interface.
 
 ---
 
-## Features
+## Key Features
 
-- Uses the latest NASA Exoplanet Archive data
-- Binary classification of habitable vs. non-habitable planets
-- Random Forest optimization using GridSearchCV
-- K-Means and Gaussian Mixture clustering
-- Continuous habitability scoring
-- PCA visualization of candidate clusters
-- Feature importance analysis
-- Exportable ranked catalog of habitable exoplanets
+- Ensemble machine learning framework for exoplanet habitability prediction
+- Random Forest, XGBoost, and Multi-Layer Perceptron (MLP) models
+- Ensemble voting for improved predictive performance
+- K-Means clustering of habitable candidates
+- Continuous habitability scoring and ranking
+- Interactive Streamlit web application
+- Automated preprocessing and prediction pipeline
+- Exportable prediction results
+- Published IEEE research methodology
+
+---
+
+## Machine Learning Pipeline
+
+```text
+NASA Exoplanet Archive
+            │
+            ▼
+     Data Preprocessing
+            │
+            ▼
+    Feature Engineering
+            │
+            ▼
+ ┌────────────────────────┐
+ │ Random Forest Model    │
+ └────────────────────────┘
+            │
+ ┌────────────────────────┐
+ │ XGBoost Model          │
+ └────────────────────────┘
+            │
+ ┌────────────────────────┐
+ │ Neural Network (MLP)   │
+ └────────────────────────┘
+            │
+            ▼
+     Ensemble Learning
+            │
+            ▼
+ Habitability Classification
+            │
+            ▼
+   K-Means Clustering
+            │
+            ▼
+ Continuous Habitability Score
+            │
+            ▼
+ Interactive Streamlit Dashboard
+```
+
+---
+
+## Repository Structure
+
+```text
+METHI/
+│
+├── app.py
+├── requirements.txt
+├── README.md
+│
+├── Models
+│   ├── methi_model.pkl
+│   ├── methi_best_model.pkl
+│   ├── methi_rf.pkl
+│   ├── methi_xgb.pkl
+│   ├── methi_mlp.pkl
+│   ├── methi_ensemble.pkl
+│   ├── methi_cluster_model.pkl
+│   └── methi_scaler.pkl
+│
+├── Data
+│   ├── stage1_predictions.csv
+│   ├── stage2_accurate_clusters.csv
+│   ├── stage3_habitability_scores.csv
+│   └── all_75_habitable_exoplanets_scores.csv
+│
+└── Assets
+```
+
+---
+
+## Machine Learning Models
+
+METHI integrates multiple machine learning algorithms to improve prediction accuracy and robustness.
+
+| Model | Purpose |
+|--------|----------|
+| Random Forest | Habitability classification |
+| XGBoost | Gradient-boosted prediction |
+| Multi-Layer Perceptron (MLP) | Neural network classification |
+| Ensemble Model | Final prediction |
+| K-Means | Clustering habitable candidates |
 
 ---
 
 ## Dataset
 
-Primary Dataset:
+METHI uses publicly available data from the **NASA Exoplanet Archive**.
 
-- NASA Exoplanet Archive
-  - Confirmed Planet Table (`pscomppars.csv`)
+The primary astrophysical features include:
 
-Reference Dataset:
+- Planet Radius
+- Stellar Insolation Flux
+- Stellar Effective Temperature
+- Stellar Mass
+- Stellar Radius
 
-- Planetary Habitability Laboratory (PHL) Exoplanet Catalog
-
-Approximately 5,900 confirmed exoplanets were analyzed.
-
----
-
-## Input Features
-
-The initial model uses the following astrophysical parameters:
-
-| Feature | Description |
-|----------|-------------|
-| `pl_rade` | Planet Radius (Earth radii) |
-| `pl_insol` | Stellar Insolation Flux |
-| `st_teff` | Stellar Effective Temperature (K) |
-| `st_mass` | Stellar Mass (Solar Masses) |
-| `st_rad` | Stellar Radius (Solar Radii) |
+The dataset contains approximately **5,900 confirmed exoplanets**, from which METHI identifies and ranks potentially habitable worlds.
 
 ---
 
-# Project Structure
-
-```
-METHI/
-│
-├── data/
-│   ├── pscomppars.csv
-│   ├── stage1_predictions.csv
-│   ├── habitable_candidates.csv
-│   └── all_75_habitable_exoplanets_scores.csv
-│
-├── notebooks/
-│   ├── Stage1_Classification.ipynb
-│   ├── Stage2_Clustering.ipynb
-│   ├── Stage3_Scoring.ipynb
-│   └── Stage4_Visualization.ipynb
-│
-├── figures/
-│   ├── confusion_matrix.png
-│   ├── feature_importance.png
-│   ├── pca_clusters.png
-│   └── score_distribution.png
-│
-├── models/
-│   ├── random_forest_classifier.pkl
-│   └── random_forest_regressor.pkl
-│
-├── requirements.txt
-├── LICENSE
-└── README.md
-```
-
----
-
-# Methodology
-
-## Stage 1 — Habitability Classification
-
-A binary classifier identifies planets that satisfy broad habitability constraints.
-
-### Label Definition
-
-A planet is considered potentially habitable if:
-
-- Radius:
-  ```
-  0.8 ≤ Planet Radius ≤ 2.5 Earth Radii
-  ```
-
-- Insolation:
-  ```
-  0.3 ≤ Stellar Flux ≤ 2.0 Earth Flux
-  ```
-
-Random Forest Classification was selected because it:
-
-- Handles nonlinear relationships
-- Is robust to noisy astronomical data
-- Provides feature importance
-- Performs well on tabular datasets
-
-GridSearchCV was used for hyperparameter optimization.
-
----
-
-## Stage 2 — Candidate Clustering
-
-Only planets predicted as habitable proceed to clustering.
-
-Algorithms evaluated:
-
-- K-Means
-- Gaussian Mixture Models (GMM)
-- DBSCAN
-
-Results:
-
-| Model | Silhouette Score |
-|--------|-----------------:|
-| K-Means (k=2) | 0.3851 |
-| GMM (k=2) | 0.3364 |
-
-K-Means provided the highest cluster separation.
-
----
-
-## Stage 3 — Habitability Scoring
-
-Each candidate receives a continuous Machine-Learned Exoplanetary Habitability Index (METHI).
-
-The scoring model combines astrophysical parameters into a normalized target and trains a Random Forest Regressor.
-
-Performance:
-
-| Metric | Value |
-|---------|-------|
-| R² | **0.8629** |
-| RMSE | **0.0801** |
-| MAE | **0.0596** |
-
-Best Hyperparameters:
-
-```python
-{
-    "n_estimators": 50,
-    "max_depth": 5
-}
-```
-
----
-
-## Stage 4 — Visualization
-
-The final stage visualizes the latent structure of habitable candidates using Principal Component Analysis (PCA).
-
-Visualizations include:
-
-- PCA projection
-- Cluster assignments
-- Feature importance
-- Score distribution
-- Ranked candidate plots
-
----
-
-# Results
-
-- Total confirmed planets analyzed: ~5,900
-- Potentially habitable candidates identified: 75
-- Classification performed using Random Forest
-- Clustering validated using silhouette analysis
-- Continuous habitability scores generated for every candidate
-
----
-
-# Installation
+## Installation
 
 Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/METHI.git
+git clone https://github.com/ruthwik-dhama/methi.git
+cd methi
 ```
 
-Move into the project directory:
-
-```bash
-cd METHI
-```
-
-Install dependencies:
+Install the required dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -216,104 +166,116 @@ pip install -r requirements.txt
 
 ---
 
-# Usage
+## Running the Application
 
-Run each stage sequentially:
-
-```bash
-python Stage1_Classification.py
-```
+Launch the interactive Streamlit application:
 
 ```bash
-python Stage2_Clustering.py
+streamlit run app.py
 ```
 
-```bash
-python Stage3_Scoring.py
-```
+The web application allows users to:
 
-```bash
-python Stage4_Visualization.py
-```
+- Predict exoplanet habitability
+- Compare machine learning model predictions
+- Explore habitability scores
+- Visualize clustered candidate planets
+- Rank potentially habitable exoplanets
 
 ---
 
-# Example Output
+## Results
 
-```
-Planet Name                  METHI Score
+Using approximately **5,900 confirmed exoplanets**, METHI successfully:
 
-Planet A                     0.97
-Planet B                     0.95
-Planet C                     0.94
-...
-```
-
-The final output is a ranked catalog of exoplanets according to predicted habitability.
+- Identified **75 high-potential habitable candidates**
+- Generated continuous habitability scores through ensemble machine learning
+- Clustered planets with similar astrophysical characteristics
+- Produced an interpretable ranking of candidate exoplanets
+- Delivered an interactive web platform for real-time prediction and exploration
 
 ---
 
-# Technologies
+## Technologies
 
 - Python
-- NumPy
 - Pandas
+- NumPy
 - Scikit-learn
+- XGBoost
+- TensorFlow / Keras
+- Streamlit
 - Matplotlib
-- SciPy
-- Jupyter Notebook
 
 ---
 
-# Future Work
+## Future Work
 
-- Incorporate atmospheric composition and metallicity
-- Integrate planetary density and orbital eccentricity
-- Explore deep learning architectures
-- Develop uncertainty-aware predictions
-- Create a web-based visualization dashboard
-- Expand feature engineering using stellar evolution models
+Planned improvements include:
+
+- Atmospheric composition analysis
+- Orbital eccentricity modeling
+- Bayesian uncertainty estimation
+- Explainable AI using SHAP values
+- Transformer-based deep learning architectures
+- Integration with future NASA Exoplanet Archive releases
+- Incorporation of JWST observational data
+- Automated model retraining for newly confirmed exoplanets
 
 ---
 
-# Citation
+## Citation
 
-If you use this work in research, please cite:
+If you use METHI in your research, please cite the published paper.
 
+```bibtex
+@inproceedings{dhama2025methi,
+  author    = {Ruthwik Dhama and Praveen Pratap Singh and Vishal Kumar},
+  title     = {METHI: An Ensemble-based Machine Learned Exoplanetary Habitability Index},
+  booktitle = {2025 International Conference on New Media Studies (CONMEDIA)},
+  year      = {2025},
+  publisher = {IEEE},
+  url       = {https://ieeexplore.ieee.org/document/11290119}
+}
 ```
-Dhama, R.
-METHI: Machine-Learned Exoplanetary Habitability Index.
-2026.
+
+If you use the software implementation, please also cite the GitHub repository.
+
+```bibtex
+@software{dhama2025methi,
+  author = {Ruthwik Dhama},
+  title  = {METHI: Machine-Learned Exoplanetary Habitability Index},
+  year   = {2025},
+  url    = {https://github.com/ruthwik-dhama/methi}
+}
 ```
 
 ---
 
-# License
-
-This project is released under the MIT License.
-
----
-
-# Author
+## Author
 
 **Ruthwik Dhama**
 
-Astrophysics • Machine Learning • Data Science
+Student Researcher in Astrophysics, Machine Learning, and Data Science
 
-Research interests include:
+**Research Interests**
 
 - Exoplanet Habitability
-- Stellar Spectroscopy
 - Astroinformatics
-- Machine Learning for Astronomy
+- Machine Learning
+- Stellar Astrophysics
+- Scientific Computing
 
 ---
 
 ## Acknowledgments
 
-This project utilizes publicly available data from:
+This work was made possible through the support of the **Young Researchers Institute** and the use of publicly available datasets provided by the **NASA Exoplanet Archive**.
 
-- NASA Exoplanet Archive
-- Planetary Habitability Laboratory (PHL)
+The author also acknowledges the contributions of **Praveen Pratap Singh** and **Vishal Kumar** for their mentorship and collaboration throughout the development of METHI.
 
-Special thanks to the scientific community for providing open astronomical datasets that make reproducible exoplanet research possible.
+---
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for more information.
